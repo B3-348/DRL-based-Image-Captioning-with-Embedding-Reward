@@ -190,68 +190,6 @@ class RNN_p():
 
             return  input_x
 
-    def rnn_model(self, dropout=False):
-        """
-
-        :param input_x:
-        :param h:
-        :param dropout:
-        :param reuse:
-        :return:
-        """
-        features = self.features#shape:[batch_size,512]
-        captions = self.captions#shape:[batch_size,512]
-        captions = captions[:,1:]#shape:[batch_size,511]
-        rnn_cell = tf.nn.rnn_cell.BasicRNNCell(self.hidden_size)
-
-        #features = self.batch_norm(features,mode='train',name='conv_features')
-        #word_embed = self.word_embedding(captions)
-        loss = 0.0
-        for ind in range(self.n_time_step):
-            if ind == 0:
-                x, h = self.init_rnn(features)#x.shape:[batch_size,512]   h.shape:[batch_size,512]
-                pro = self.probility_policy(h,reuse=(ind!=0))
-                loss = self.loss(pro,captions,ind)
-                input_x = self.get_input_x(captions[ind],reuse=(ind!=0))
-            else:
-                with tf.variable_scope('rnn'):
-                     h,o = rnn_cell(input_x,h)
-                #print("h shape:%d     o shape: %d" %h.shape,o.shape)
-                pro = self.probility_policy(h,reuse=(ind!=0))
-                #print("pro hsape: %d" %pro.shape)
-                loss += self.loss(pro, captions,ind)
-                input_x = self.get_input_x(captions[ind],reuse=(ind!=0))
-               # print("input s shape: %d"%input_x.shape)
-
-        return  loss
-
-
-    def test_rnn_model(self,max_len = 20):
-        features = self.test_features
-        #features = self.batch_norm(features,mode='test',name='conv_features')
-        #input_x,h = self.init_rnn(features=features)
-
-        pro_list = []
-        index_list = []
-        word_list = []
-        test_rnn_cell = tf.nn.rnn_cell.BasicRNNCell(num_units=self.hidden_size)
-
-        for i in range(max_len):
-            if i == 0:
-                x,h = self.init_rnn(features)
-                pro = self.probility_policy(h,reuse=(i!=0))
-                index_list.append(tf.argmax(pro,1))
-                input_x = self.get_input_x(pro,reuse=(i!=0))
-            else:
-                with tf.variable_scope('lstm'):
-                    h,o = test_rnn_cell(input_x,h)
-                pro = self.probility_policy(h,reuse=(i!=0))
-                index_list.append(tf.argmax(pro,1))
-                input_x = self.get_input_x(pro,reuse=(i!=0))
-
-        t_idx_list = tf.transpose(tf.stack(index_list),(1,0))
-
-        return t_idx_list
 
     def lstm_model(self, dropout=False):
         """
