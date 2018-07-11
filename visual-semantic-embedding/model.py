@@ -45,8 +45,8 @@ class VS_embedding(object):
             #tf.reshape()
             #W2 = tf.get_variable('W2', [self.hidden_unit*2, self.hidden_dim], initializer=self.weight_initializer)
             #b2 = tf.get_variable('b2', [self.hidden_dim], initializer=self.const_initializer)
-            cap_encode = tf.nn.tanh(tf.matmul(state, self.W2) + self.b2)
-            return cap_encode
+            #cap_encode = tf.nn.tanh(tf.matmul(state, self.W2) + self.b2)
+            return state
 
     def _loss(self):
         img_encode = self._image_encoder()

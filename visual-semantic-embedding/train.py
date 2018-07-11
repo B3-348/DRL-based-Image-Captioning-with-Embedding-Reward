@@ -3,10 +3,10 @@ import numpy as np
 import model
 from utils import load_coco_data
 import os
-BATCH_SIZE = 64
-LEARNING_RATE = 0.001
+BATCH_SIZE = 128
+LEARNING_RATE = 0.0002
 SAVE_EVERY = 10
-model_path = '/media/yyl/e62cfea3-fff0-4e79-9e11-b0b00c401896/workspace/DRL-based-Image-Captioning-with-Embedding-Reward/model/model-200'
+model_path = '/media/yyl/e62cfea3-fff0-4e79-9e11-b0b00c401896/workspace/DRL-based-Image-Captioning-with-Embedding-Reward/model/model-50'
 
 def train(data):
     model_path = '/media/yyl/e62cfea3-fff0-4e79-9e11-b0b00c401896/workspace/DRL-based-Image-Captioning-with-Embedding-Reward/model'
@@ -19,7 +19,7 @@ def train(data):
     #val_features = val_data['features']
     #n_iters_val = int(np.ceil(float(val_features.shape[0]) / BATCH_SIZE))
     VS_embedding = model.VS_embedding(
-        batch_size = 64,
+        batch_size = 128,
         feature_dim = 4096,
         hidden_dim = 1024,
         vocab_num = 25000,
@@ -93,22 +93,22 @@ def calculate_reward(VS_embedding, img_features, cap_tokens, model_path):
 if __name__ == '__main__':
     data_path = '/media/yyl/e62cfea3-fff0-4e79-9e11-b0b00c401896/workspace/show-attend-and-tell-master/data'
     data = load_coco_data(data_path)
-    train(data)
-    # VS_embedding = model.VS_embedding(
-    #     batch_size=64,
-    #     feature_dim=4096,
-    #     hidden_dim=1024,
-    #     vocab_num=25000,
-    #     embedding_dim=300,
-    #     hidden_unit=512,
-    #     max_len=17,
-    #     margin=0.2
-    # )
-    # features = data['features']
-    # captions = data['captions']
-    # img = features[:64]
-    # cap = captions[:64]
-    # cap1 = captions[128:192]
-    # correct = calculate_reward(VS_embedding,img, cap, model_path)
-    # wrong = calculate_reward(VS_embedding,img,cap1, model_path)
-    # print(correct,'\n', wrong)
+    #train(data)
+    VS_embedding = model.VS_embedding(
+        batch_size=128,
+        feature_dim=4096,
+        hidden_dim=1024,
+        vocab_num=25000,
+        embedding_dim=300,
+        hidden_unit=512,
+        max_len=17,
+        margin=0.2
+    )
+    features = data['features']
+    captions = data['captions']
+    img = features[:128]
+    cap = captions[:128]
+    cap1 = captions[128:256]
+    correct = calculate_reward(VS_embedding,img, cap, model_path)
+    wrong = calculate_reward(VS_embedding,img,cap1, model_path)
+    print(correct,'\n', wrong)
