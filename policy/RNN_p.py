@@ -102,13 +102,14 @@ class RNN_p():
             pro_w = tf.get_variable('pro_w',[self.hidden_size,self.embed_size],initializer=self.weight_initializer)
             pro_b = tf.get_variable('pro_b',[self.embed_size],initializer=self.const_initializer)
             logits = tf.matmul(h,pro_w)+pro_b
-            logits = tf.nn.relu(logits)
+            logits = tf.nn.tanh(logits)
             logits = tf.nn.dropout(logits, 0.5)
 
             # shape [batch_size , vocab]
             pro_word_w = tf.get_variable('pro_word_w',[self.embed_size,self.vocab_size],initializer=self.weight_initializer)
             pro_word_b = tf.get_variable('pro_word_b',[self.vocab_size],initializer=self.const_initializer)
             logits_word = tf.matmul(logits,pro_word_w)+pro_word_b
+            #logit = tf.nn.softmax(logits_word)
 
             return  logits_word
 
@@ -211,6 +212,8 @@ class RNN_p():
         for ind in range(self.n_time_step):
             if ind == 0:
                 x, h,c = self.init_lstm(features)  # x.shape:[batch_size,512]   h.shape:[batch_size,512]
+                with tf.variable_scope('lstm'):
+                    _,(c,h) = lstm_cell(x,[c,h])
                 pro = self.probility_policy(h, reuse=(ind != 0))
                 loss = self.loss(pro, captions, ind)
                 input_x = self.get_input_x(captions[:,ind], reuse=(ind != 0))
@@ -229,13 +232,15 @@ class RNN_p():
     def test_lstm_model(self,max_len = 20):
         print("go to lstm !")
         features = self.test_features
-        features = self.batch_norm(features,mode='test',name='conv_features')
+        #features = self.batch_norm(features,mode='test',name='conv_features')
         test_lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hidden_size)
         index_list = []
         print("innier feature num : " ,features.shape[0])
         for i in range(max_len):
             if i == 0:
                 x,h,c = self.init_lstm(features)
+                with tf.variable_scope('lstm'):
+                    _,(c,h) = test_lstm_cell(x,state=[c,h])
                 pro = self.probility_policy(h,reuse=(i!=0))
                 index_list.append(tf.argmax(pro,1))
                 input_x = self.test_input_x(pro,reuse=(i!=0))

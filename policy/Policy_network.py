@@ -128,7 +128,7 @@ class policy_network(object):
             for i in range(len(decode_caption)):
                 print(len(decode_caption[i].split()))
                 print(decode_caption[i])
-            """
+
             if visual:
                 for n in range(10):
                     print("test caption: %s" %decode_caption[n])
@@ -136,10 +136,10 @@ class policy_network(object):
                     #plot original image
                     img = ndimage.imread('/home/cy/'+img_files[n])
                     plt.subplot(4,5,1)
-                    plt.text(decode_caption[n])
+                    plt.text(0,1,decode_caption[n])
                     plt.imshow(img)
                     plt.axis('off')
-            """
+
 
 
     def get_img_features(self,img_path_list,feature_path):
@@ -172,8 +172,8 @@ class policy_network(object):
 data = data_utils.load_coco_data(config.data_path,split='test')
 rnn_model = RNN_p(word_to_idx=data['word_to_idx'])
 policy=policy_network(rnn_model,data)
-#policy.train(pretrained_model_path=config.model_path+'-571')
-policy.test(data,test_path=config.model_path+"-571")
+#policy.train(pretrained_model_path=config.model_path+"-9")
+policy.test(data,test_path=config.model_path+"-621")
 
 
 

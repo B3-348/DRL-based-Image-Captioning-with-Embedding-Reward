@@ -1,36 +1,24 @@
-import tensorflow as tf
-a=[
-    [1,2,23,4353,57],
-    [34,546,46,67,78],
-    [1223,34,35,65,7]
+import pandas as pd
+a=[{'a': 1,  'b': 2,  'c': 3},
+   {'a': 11, 'b': 132, 'c': 13},
+   {'a': 21, 'b': 22, 'c': 23},
+   {'a': 31, 'b': 32, 'c': 33}]
+b={
+    'a' : [1, 2, 3, 4],
+    'b' :[11,12,13,14],
+    'c' :[21,22,23,24],
+    'd' :[31,32,33,34],
 
-]
-b=[
-    [1,2,23333,4353,57],
-    [34,546,4446,67,78],
-    [1223,34,3445,65,7]
-
-]
-c=[
-    [1,22222,23,4353,57],
-    [32224,546,46,67,78],
-    [1223,34,35,65,72222]
-
-]
-hh=[]
-with tf.Session() as sess:
-    d=tf.argmax(a,1)
-    e=tf.argmax(b,1)
-    f=tf.argmax(c,1)
-    hh.append(d)
-    hh.append(e)
-    hh.append(f)
-    gg=tf.transpose(tf.stack(hh),(1,0))
-    print(sess.run(gg))
-    print(sess.run(len(gg)))
-    if gg.ndim == 1:
-        print("0000")
-    else:
-        print("nnn")
+}
 
 
+data = pd.DataFrame.from_dict(a)
+da=pd.DataFrame.from_dict(a)
+del data['a']
+del da['a']
+data.sort_values(by='b',inplace=True)
+print(data)
+data = data.reset_index(drop=True)
+print(data)
+da.sort_values(by='b',inplace=False)
+print(da)
