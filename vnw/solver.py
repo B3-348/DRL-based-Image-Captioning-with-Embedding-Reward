@@ -3,10 +3,12 @@ import random
 import numpy as np
 import time
 import os
+from vse.model import VS_embedding
+from vse.solver import slover
 
 
 class ValueNetWordSolver(object):
-    def __init__(self, word2idx, model, data, val_data, batch_size=100, n_epochs=100,
+    def __init__(self, word2idx, model, data, val_data, batch_size=100, n_epochs=20000,
                  save_every=10, print_every=100, model_path=None, pretrained_model=None):
         self.word2idx = word2idx
         self.model = model
@@ -18,7 +20,7 @@ class ValueNetWordSolver(object):
         self.print_every = print_every
 
         self.model_path = model_path
-        self.pretrained_model = pretrained_model
+        self.pretrained_model = "/home/lemin/1TBdisk/PycharmProjects/DRL-based-Image-Captioning-with-Embedding-Reward/vnw/vnw_model/vs_model-180"
 
         self._start = word2idx['<START>']
         self._null = word2idx['<NULL>']
@@ -103,18 +105,44 @@ class ValueNetWordSolver(object):
                 rand_idx = np.random.permutation(n_examples)
                 captions = captions[rand_idx]
                 image_idxs = image_idxs[rand_idx]
+                calculate_time = 0
+
+                s_captions, s_captions_length, o_captions = self._sample_time_step(captions)
 
                 for i in range(n_iters_per_epoch):
-                    captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
+                    o_captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
+                    captions_batch = s_captions[i*self.batch_size:(i+1)*self.batch_size]
+
+                    captions_length_batch = s_captions_length[i*self.batch_size:(i+1)*self.batch_size]
                     image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
                     features_batch = features[image_idxs_batch]
 
-                    s_captions_batch, s_captions_length_batch, captions_batch = self._sample_time_step(captions_batch)
+                    start_time = time.time()
+                    vs_graph = tf.Graph()
+                    # calculate reward
+
+                    model = VS_embedding(
+                        batch_size=100,
+                        feature_dim=4096,
+                        hidden_dim=1024,
+                        vocab_num=10000,
+                        embedding_dim=512,
+                        hidden_unit=1024,
+                        max_len=17,
+                        margin=0.2,
+                        graph=vs_graph
+                    )
+
+                    solver = slover(model, vs_graph)
+
+                    batch_reward = solver.calculate_reward(features_batch, o_captions_batch)
+                    end_time = time.time()
+                    calculate_time += end_time - start_time
 
                     feed_dict = {self.model.features: features_batch,
-                                 self.model.captions: s_captions_batch,
-                                 self.model.captions_length: s_captions_length_batch,
-                                 self.model.original_caption: captions_batch}
+                                 self.model.captions: captions_batch,
+                                 self.model.captions_length: captions_length_batch,
+                                 self.model.reward: batch_reward}
                     _, l = sess.run([train_op, loss], feed_dict)
                     curr_loss += l
 
@@ -133,7 +161,41 @@ class ValueNetWordSolver(object):
                 prev_loss_list.append(prev_loss)
                 curr_loss = 0
 
-                # save model's parameters
+                # save vnw_model's parameters
                 if (e+1) % self.save_every == 0:
-                    saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
-                    print("model-%s saved." % (e+1))
+                    saver.save(sess, os.path.join(self.model_path, 'vs_model'), global_step=e+1)
+                    print("vs_model-%s saved." % (e+1))
+                print(calculate_time)
+
+    def test(self, data):
+        features = data["features"]
+        captions = data["captions"]
+
+        captions_length = np.asarray([len(caption) for caption in captions]).astype("int32")
+        captions = self._pad_sentence_batch(captions)
+
+        with tf.variable_scope(tf.get_variable_scope()):
+            v = self.model.build_sampler()
+            tf.get_variable_scope().reuse_variables()
+
+        config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
+
+        with tf.Session(config=config) as sess:
+            tf.global_variables_initializer().run()
+            saver = tf.train.Saver()
+
+            if self.pretrained_model is not None:
+                print("Start training with pretrained Model..")
+                saver.restore(sess, self.pretrained_model)
+            else:
+                print("There is no model!")
+                raise Exception("If you want to test your model, you need to have a model first!")
+            feed_dict = {
+                self.model.features: features,
+                self.model.captions: captions,
+                self.model.captions_length: captions_length
+            }
+            v = sess.run(v, feed_dict=feed_dict)
+
+            print(v)

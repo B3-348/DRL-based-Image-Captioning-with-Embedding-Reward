@@ -3,6 +3,7 @@ import tensorflow.contrib as tc
 import numpy as np
 import math
 
+
 from tensorflow.python.framework import ops
 
 
@@ -43,7 +44,8 @@ class ValueNetWork(object):
         self.mlp_layer1_dim = 1024
         self.mlp_layer2_dim = 512
 
-        self.cell = tc.rnn.GRUCell
+        self.vs_model_path = "../vse/vs_model/model-14490"
+        self.cell = tc.rnn.LSTMCell
 
         # weight initializer
         self.weight_initializer = tf.contrib.layers.xavier_initializer()
@@ -54,6 +56,7 @@ class ValueNetWork(object):
         self.captions = tf.placeholder(dtype=tf.int32, shape=[None, None], name="sample_t_captions")
         self.captions_length = tf.placeholder(dtype=tf.int32, shape=[None, ], name="sample_t_captions_length")
         self.original_caption = tf.placeholder(dtype=tf.int32, shape=[None, max_time_step], name="original_caption")
+        self.reward = tf.placeholder(dtype=tf.float32, shape=[None, ], name="reward")
 
     def _batch_norm(self, x, mode="train", name=None):
         return tc.layers.batch_norm(inputs=x,
@@ -73,12 +76,12 @@ class ValueNetWork(object):
         Returns:
             feature_proj: shape:(batch_size, 512)
         """
-        with tf.variable_scope("proj_features"):
+        with tf.variable_scope("proj_features", reuse=tf.AUTO_REUSE):
             w = tf.get_variable("w", shape=[self.feature_o_dim, self.feature_n_dim],
                                 initializer=self.weight_initializer)
+            # w = lecun_normal(self.feature_o_dim, self.feature_n_dim, name="w")
             b = tf.get_variable("b", shape=[self.feature_n_dim], initializer=self.const_initializer)
-
-            feature_proj = tf.matmul(features, w) + b
+            feature_proj = tf.nn.relu(tf.matmul(features, w) + b)
 
             return feature_proj
 
@@ -113,17 +116,22 @@ class ValueNetWork(object):
         Returns:
             v:value network's prediction, and it's shape is (batch_size, 1)
         """
-        with tf.variable_scope("mlp_layer"):
+        with tf.variable_scope("mlp_layer", reuse=tf.AUTO_REUSE):
             # variable of three-layers MLP
             layer1_w = tf.get_variable("layer1_w", shape=[self.hidden_units+self.feature_n_dim, self.mlp_layer1_dim],
                                        initializer=self.weight_initializer)
+            # layer1_w = lecun_normal(self.hidden_units+self.feature_n_dim, self.mlp_layer1_dim, name="layer1_w")
+
             layer1_b = tf.get_variable("layer1_b", shape=[self.mlp_layer1_dim], initializer=self.const_initializer)
 
             layer2_w = tf.get_variable("layer2_w", shape=[self.mlp_layer1_dim, self.mlp_layer2_dim],
                                        initializer=self.weight_initializer)
+            # layer2_w = lecun_normal(self.mlp_layer1_dim, self.mlp_layer2_dim, name="layer2_w")
+
             layer2_b = tf.get_variable("layer2_b", shape=[self.mlp_layer2_dim], initializer=self.const_initializer)
 
             layer3_w = tf.get_variable("layer3_w", shape=[self.mlp_layer2_dim, 1], initializer=self.weight_initializer)
+            # layer3_w = lecun_normal(self.mlp_layer2_dim, 1, name="layer3_w")
 
             layer3_b = tf.get_variable("layer3_b", shape=[1], initializer=self.const_initializer)
 
@@ -139,10 +147,15 @@ class ValueNetWork(object):
 
             return v
 
-    def _visual_semantic_embed_reward(self, features, captions):
-        reward_list = [100] * self.batch_size
-        reward_list = np.asarray(reward_list, dtype="float32")
-        return reward_list
+    def _cos(self, features, captions):
+        inner_product = tf.reduce_sum(tf.multiply(features, captions), axis=1)
+        norm1 = tf.sqrt(tf.reduce_sum(tf.square(features), axis=1))
+        norm2 = tf.sqrt(tf.reduce_sum(tf.square(captions), axis=1))
+        cos = inner_product / (norm1 * norm2)
+        return cos
+
+    def _visual_semantic_embed_reward(self):
+        return [100] * 100
 
     def _caption_encoder(self, time_t_captions, time_t_captions_length, num_layers):
         """
@@ -155,29 +168,29 @@ class ValueNetWork(object):
         Returns:
             st: hidden state of RNN_Cell, of which shape is [batch_size, hidden_units]
         """
-        encoder_embed_inputs = tc.layers.embed_sequence(time_t_captions, self.vocab_size, self.embed_size)
+        with tf.variable_scope("caption_encoder", reuse=tf.AUTO_REUSE):
+            encoder_embed_inputs = tc.layers.embed_sequence(time_t_captions, self.vocab_size, self.embed_size)
 
-        rnn_cell = self.cell(self.hidden_units)
+            rnn_cell = self.cell(self.hidden_units)
 
-        if num_layers == 1:
-            _, encoder_state = tf.nn.dynamic_rnn(cell=rnn_cell,
-                                                 inputs=encoder_embed_inputs,
-                                                 sequence_length=time_t_captions_length,
-                                                 dtype=tf.float32)
-            return encoder_state
-        else:
-            cell = tc.rnn.MultiRNNCell([rnn_cell for _ in range(num_layers)])
-            _, encoder_state = tf.nn.dynamic_rnn(cell=cell,
-                                                 inputs=encoder_embed_inputs,
-                                                 sequence_length=time_t_captions_length,
-                                                 dtype=tf.float32)
-            return encoder_state
+            if num_layers == 1:
+                _, (c, h) = tf.nn.dynamic_rnn(cell=rnn_cell,
+                                              inputs=encoder_embed_inputs,
+                                              sequence_length=time_t_captions_length,
+                                              dtype=tf.float32)
+                return h
+            else:
+                cell = tc.rnn.MultiRNNCell([rnn_cell for _ in range(num_layers)])
+                _, (c, h) = tf.nn.dynamic_rnn(cell=cell,
+                                              inputs=encoder_embed_inputs,
+                                              sequence_length=time_t_captions_length,
+                                              dtype=tf.float32)
+                return h
 
     def build_model(self):
         features = self.features
         captions = self.captions
         captions_length = self.captions_length
-        original_caption = self.original_caption
 
         # batch_norm
         features = self._batch_norm(features, mode='train', name='conv_features')
@@ -195,10 +208,29 @@ class ValueNetWork(object):
         # value prediction of value network
         v = self._mlp_layer(concat_features)
 
-        # get visual-semantic embedding reward
-        reward = self._visual_semantic_embed_reward(features, original_caption)
-
-        loss = self._loss(v, reward)
+        loss = self._loss(v, self.reward)
 
         return loss
+
+    def build_sampler(self):
+        features = self.features
+        captions = self.captions
+        captions_length = self.captions_length
+
+        features = self._batch_norm(features, mode='test', name='conv_features')
+
+        # shape:[batch_size, 512]
+        features_proj = self._proj_features(features)
+
+        # shape:[batch_size, 512]
+        # encode caption use GRU
+        st = self._caption_encoder(captions, captions_length, self.num_layers)
+
+        # shape:[batch_size, 1024]
+        concat_features = tf.concat([features_proj, st], axis=1)
+
+        # value prediction of value network
+        v = self._mlp_layer(concat_features)
+
+        return v
 
